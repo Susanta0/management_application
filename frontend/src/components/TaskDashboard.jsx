@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import {
   Plus,
-  Search,
   Calendar,
   Check,
   Trash2,
@@ -9,104 +8,152 @@ import {
   Clock,
   CheckCircle,
   X,
+  AlertCircle,
+  Flag,
 } from "lucide-react";
+import { useApi } from "../utils/api";
+import { useContext } from "react";
+import { AuthContext } from "../context/AuthContextProvider.jsx";
 
 export default function TaskDashboard() {
   const [tasks, setTasks] = useState([]);
-  const [newTaskTitle, setNewTaskTitle] = useState("");
-  const [newTaskDescription, setNewTaskDescription] = useState("");
+  const [newTask, setNewTask] = useState({
+    title: "",
+    description: "",
+    status: "incomplete",
+    priority: "Medium",
+  });
   const [filter, setFilter] = useState("all");
   const [isAddingTask, setIsAddingTask] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  // Sample initial tasks data
+  const api = useApi();
+  //   const { userId } = useContext(AuthContext);
+  const userId = localStorage.getItem("userId");
+  // Fetch tasks from API
   useEffect(() => {
-    const initialTasks = [
-      {
-        id: 1,
-        title: "Complete project proposal",
-        description: "Finalize the Q3 project proposal document",
-        completed: false,
-        createdAt: new Date(2025, 3, 25),
-      },
-      {
-        id: 2,
-        title: "Weekly team meeting",
-        description: "Review sprint progress and discuss blockers",
-        completed: true,
-        createdAt: new Date(2025, 3, 24),
-      },
-      {
-        id: 3,
-        title: "Update portfolio website",
-        description: "Add recent projects and refresh design",
-        completed: false,
-        createdAt: new Date(2025, 3, 23),
-      },
-      {
-        id: 4,
-        title: "Research new technologies",
-        description: "Look into potential tools for next project",
-        completed: false,
-        createdAt: new Date(2025, 3, 22),
-      },
-    ];
-    setTasks(initialTasks);
-  }, []);
-
-  const addTask = (e) => {
-    e.preventDefault();
-    if (!newTaskTitle.trim()) return;
-
-    const newTask = {
-      id: Date.now(),
-      title: newTaskTitle,
-      description: newTaskDescription,
-      completed: false,
-      createdAt: new Date(),
+    const fetchTasks = async () => {
+      try {
+        setIsLoading(true);
+        setError("");
+        const response = await api.get("/api/task/get_tasks");
+        setTasks(response.data?.tasks || []);
+      } catch (err) {
+        console.error("Error fetching tasks:", err);
+        setError("Failed to load tasks. Please try again later.");
+      } finally {
+        setIsLoading(false);
+      }
     };
 
-    setTasks([newTask, ...tasks]);
-    setNewTaskTitle("");
-    setNewTaskDescription("");
-    setIsAddingTask(false);
+    fetchTasks();
+  }, [api]);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setNewTask((prev) => ({ ...prev, [name]: value }));
   };
 
-  const toggleCompletion = (id) => {
-    setTasks(
-      tasks.map((task) =>
-        task.id === id ? { ...task, completed: !task.completed } : task
-      )
-    );
+  const addTask = async (e) => {
+    e.preventDefault();
+
+    try {
+      // Log the payload for debugging
+      console.log("Sending task data:", newTask);
+      const taskToAdd = {
+        ...newTask,
+        userId: userId, // Ensure userId is included if required by your API
+      };
+      const response = await api.post("/api/task/create_task", taskToAdd);
+      console.log("API response:", response);
+
+      if (response.data && response.data.task) {
+        // Add the new task to the state
+        setTasks((prevTasks) => [response.data.task, ...prevTasks]);
+
+        // Reset form
+        setNewTask({
+          title: "",
+          description: "",
+          priority: "medium",
+          status: "incomplete",
+        });
+        setIsAddingTask(false);
+      } else {
+        // Handle case where response is successful but doesn't contain expected data
+        console.error("Invalid response format:", response.data);
+        alert("Unexpected API response. Please try again.");
+      }
+    } catch (err) {
+      console.error("Error creating task:", err);
+      // More detailed error message
+      const errorMessage =
+        err.response?.data?.message ||
+        "Failed to create task. Please try again.";
+      alert(errorMessage);
+    }
   };
 
-  const deleteTask = (id) => {
-    setTasks(tasks.filter((task) => task.id !== id));
+  const toggleTaskStatus = async (taskId) => {
+    try {
+      const task = tasks.find((t) => t._id === taskId);
+      if (!task) return;
+
+      const newStatus = task.status === "complete" ? "incomplete" : "complete";
+
+      const response = await api.put(`/api/task/${taskId}/update_task`, {
+        status: newStatus,
+      });
+
+      if (response.data && response.data.task) {
+        setTasks(
+          tasks.map((t) => (t._id === taskId ? { ...t, status: newStatus } : t))
+        );
+      }
+    } catch (err) {
+      console.error("Error updating task:", err);
+      alert("Failed to update task status. Please try again.");
+    }
+  };
+
+  const deleteTask = async (taskId) => {
+    try {
+      await api.delete(`/api/task/${taskId}/delete_task`);
+      setTasks(tasks.filter((task) => task._id !== taskId));
+    } catch (err) {
+      console.error("Error deleting task:", err);
+      alert("Failed to delete task. Please try again.");
+    }
   };
 
   const filteredTasks = tasks.filter((task) => {
-    // Apply status filter
-    if (filter === "active" && task.completed) return false;
-    if (filter === "completed" && !task.completed) return false;
-
-    // Apply search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      return (
-        task.title.toLowerCase().includes(query) ||
-        task.description.toLowerCase().includes(query)
-      );
-    }
-
+    // Apply status filter only
+    if (filter === "incomplete" && task.status === "complete") return false;
+    if (filter === "complete" && task.status === "incomplete") return false;
     return true;
   });
 
-  const formatDate = (date) => {
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
     return new Intl.DateTimeFormat("en-US", {
       month: "short",
       day: "numeric",
       year: "numeric",
     }).format(date);
+  };
+
+  const getPriorityColor = (priority) => {
+    switch (priority.toLowerCase()) {
+      case "High":
+        return "text-red-500";
+      case "Medium":
+        return "text-amber-500";
+      case "Low":
+        return "text-green-500";
+      default:
+        return "text-gray-500";
+    }
   };
 
   return (
@@ -134,37 +181,21 @@ export default function TaskDashboard() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
-        {/* Filters and Search */}
-        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div className="col-span-1 md:col-span-2">
-            <div className="relative">
-              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                <Search className="h-5 w-5 text-gray-400" />
-              </div>
-              <input
-                type="text"
-                className="block w-full rounded-lg border border-gray-300 bg-white p-2.5 pl-10 text-gray-900 focus:border-blue-500 focus:ring-blue-500"
-                placeholder="Search tasks..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+        {/* Filter Only */}
+        <div className="mb-6">
+          <div className="relative max-w-xs">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+              <Filter className="h-5 w-5 text-gray-400" />
             </div>
-          </div>
-          <div className="col-span-1">
-            <div className="relative">
-              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                <Filter className="h-5 w-5 text-gray-400" />
-              </div>
-              <select
-                className="block w-full rounded-lg border border-gray-300 bg-white p-2.5 pl-10 text-gray-900 focus:border-blue-500 focus:ring-blue-500"
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-              >
-                <option value="all">All Tasks</option>
-                <option value="active">Active Tasks</option>
-                <option value="completed">Completed Tasks</option>
-              </select>
-            </div>
+            <select
+              className="block w-full rounded-lg border border-gray-300 bg-white p-2.5 pl-10 text-gray-900 focus:border-blue-500 focus:ring-blue-500"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            >
+              <option value="all">All Tasks</option>
+              <option value="incomplete">Active Tasks</option>
+              <option value="complete">Completed Tasks</option>
+            </select>
           </div>
         </div>
 
@@ -185,36 +216,77 @@ export default function TaskDashboard() {
             <form onSubmit={addTask}>
               <div className="mb-4">
                 <label
-                  htmlFor="taskTitle"
+                  htmlFor="title"
                   className="mb-2 block text-sm font-medium text-gray-700"
                 >
                   Task Title
                 </label>
                 <input
-                  id="taskTitle"
+                  id="title"
+                  name="title"
                   type="text"
                   className="block w-full rounded-lg border border-gray-300 p-2.5 text-gray-900 focus:border-blue-500 focus:ring-blue-500"
                   placeholder="What needs to be done?"
-                  value={newTaskTitle}
-                  onChange={(e) => setNewTaskTitle(e.target.value)}
+                  value={newTask.title}
+                  onChange={handleInputChange}
                   required
                 />
               </div>
               <div className="mb-4">
                 <label
-                  htmlFor="taskDescription"
+                  htmlFor="description"
                   className="mb-2 block text-sm font-medium text-gray-700"
                 >
-                  Description (Optional)
+                  Description
                 </label>
                 <textarea
-                  id="taskDescription"
+                  id="description"
+                  name="description"
                   rows="3"
                   className="block w-full rounded-lg border border-gray-300 p-2.5 text-gray-900 focus:border-blue-500 focus:ring-blue-500"
                   placeholder="Add details about this task..."
-                  value={newTaskDescription}
-                  onChange={(e) => setNewTaskDescription(e.target.value)}
+                  value={newTask.description}
+                  onChange={handleInputChange}
                 ></textarea>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label
+                    htmlFor="priority"
+                    className="mb-2 block text-sm font-medium text-gray-700"
+                  >
+                    Priority
+                  </label>
+                  <select
+                    id="priority"
+                    name="priority"
+                    className="block w-full rounded-lg border border-gray-300 p-2.5 text-gray-900 focus:border-blue-500 focus:ring-blue-500"
+                    value={newTask.priority}
+                    onChange={handleInputChange}
+                  >
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                  </select>
+                </div>
+                <div>
+                  <label
+                    htmlFor="status"
+                    className="mb-2 block text-sm font-medium text-gray-700"
+                  >
+                    Status
+                  </label>
+                  <select
+                    id="status"
+                    name="status"
+                    className="block w-full rounded-lg border border-gray-300 p-2.5 text-gray-900 focus:border-blue-500 focus:ring-blue-500"
+                    value={newTask.status}
+                    onChange={handleInputChange}
+                  >
+                    <option value="incomplete">Incomplete</option>
+                    <option value="complete">Complete</option>
+                  </select>
+                </div>
               </div>
               <div className="flex justify-end gap-2">
                 <button
@@ -237,7 +309,30 @@ export default function TaskDashboard() {
 
         {/* Tasks List */}
         <div className="space-y-4">
-          {filteredTasks.length === 0 ? (
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center rounded-lg border border-gray-300 bg-white p-8 text-center">
+              <div className="mb-4 animate-pulse rounded-full bg-blue-50 p-3">
+                <Clock className="h-8 w-8 text-blue-500" />
+              </div>
+              <h3 className="mb-1 text-lg font-medium text-gray-800">
+                Loading tasks...
+              </h3>
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center rounded-lg border border-red-200 bg-red-50 p-8 text-center">
+              <div className="mb-4 rounded-full bg-red-100 p-3">
+                <AlertCircle className="h-8 w-8 text-red-500" />
+              </div>
+              <h3 className="mb-1 text-lg font-medium text-gray-800">Error</h3>
+              <p className="text-gray-600">{error}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-4 rounded-lg bg-red-100 px-4 py-2 text-red-700 hover:bg-red-200"
+              >
+                Try Again
+              </button>
+            </div>
+          ) : filteredTasks.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 bg-white p-8 text-center">
               <div className="mb-4 rounded-full bg-blue-50 p-3">
                 <CheckCircle className="h-8 w-8 text-blue-500" />
@@ -246,9 +341,7 @@ export default function TaskDashboard() {
                 No tasks found
               </h3>
               <p className="text-gray-600">
-                {searchQuery
-                  ? "Try a different search term"
-                  : filter !== "all"
+                {filter !== "all"
                   ? `No ${filter} tasks available`
                   : "Add your first task to get started"}
               </p>
@@ -256,9 +349,9 @@ export default function TaskDashboard() {
           ) : (
             filteredTasks.map((task) => (
               <div
-                key={task.id}
+                key={task._id}
                 className={`rounded-lg bg-white p-4 shadow-md transition-all ${
-                  task.completed
+                  task.status === "complete"
                     ? "border-l-4 border-green-500"
                     : "border-l-4 border-blue-500"
                 }`}
@@ -266,29 +359,50 @@ export default function TaskDashboard() {
                 <div className="flex items-start justify-between">
                   <div className="flex flex-1 items-start">
                     <button
-                      onClick={() => toggleCompletion(task.id)}
+                      onClick={() => toggleTaskStatus(task._id)}
                       className={`mr-3 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border ${
-                        task.completed
+                        task.status === "complete"
                           ? "border-green-500 bg-green-500 text-white"
                           : "border-gray-300 bg-white text-transparent hover:border-blue-500"
                       }`}
                     >
-                      {task.completed && <Check className="h-4 w-4" />}
+                      {task.status === "complete" && (
+                        <Check className="h-4 w-4" />
+                      )}
                     </button>
                     <div className="flex-1">
-                      <h3
-                        className={`mb-1 text-lg font-medium ${
-                          task.completed
-                            ? "text-gray-500 line-through"
-                            : "text-gray-800"
-                        }`}
-                      >
-                        {task.title}
-                      </h3>
+                      <div className="flex items-center mb-1">
+                        <h3
+                          className={`text-lg font-medium ${
+                            task.status === "complete"
+                              ? "text-gray-500 line-through"
+                              : "text-gray-800"
+                          }`}
+                        >
+                          {task.title}
+                        </h3>
+                        <div className="ml-2 flex items-center">
+                          <Flag
+                            className={`h-4 w-4 ${getPriorityColor(
+                              task.priority
+                            )}`}
+                          />
+                          <span
+                            className={`ml-1 text-xs ${getPriorityColor(
+                              task.priority
+                            )}`}
+                          >
+                            {task.priority.charAt(0).toUpperCase() +
+                              task.priority.slice(1)}
+                          </span>
+                        </div>
+                      </div>
                       {task.description && (
                         <p
                           className={`mb-2 text-sm ${
-                            task.completed ? "text-gray-400" : "text-gray-600"
+                            task.status === "complete"
+                              ? "text-gray-400"
+                              : "text-gray-600"
                           }`}
                         >
                           {task.description}
@@ -296,12 +410,15 @@ export default function TaskDashboard() {
                       )}
                       <div className="flex items-center text-xs text-gray-500">
                         <Calendar className="mr-1 h-3 w-3" />
-                        <span>Created {formatDate(task.createdAt)}</span>
+                        <span>
+                          Created{" "}
+                          {formatDate(task.creationDate || task.creataionDate)}
+                        </span>
                       </div>
                     </div>
                   </div>
                   <button
-                    onClick={() => deleteTask(task.id)}
+                    onClick={() => deleteTask(task._id)}
                     className="ml-2 rounded-full p-1 text-gray-400 hover:bg-red-50 hover:text-red-500"
                     aria-label="Delete task"
                   >
@@ -319,13 +436,15 @@ export default function TaskDashboard() {
             <div className="mb-2 flex items-center sm:mb-0">
               <Clock className="mr-2 h-4 w-4 text-gray-500" />
               <span className="text-sm text-gray-600">
-                {tasks.filter((t) => !t.completed).length} tasks remaining
+                {tasks.filter((t) => t.status !== "complete").length} tasks
+                remaining
               </span>
             </div>
             <div className="flex items-center">
               <CheckCircle className="mr-2 h-4 w-4 text-green-500" />
               <span className="text-sm text-gray-600">
-                {tasks.filter((t) => t.completed).length} tasks completed
+                {tasks.filter((t) => t.status === "complete").length} tasks
+                completed
               </span>
             </div>
           </div>
