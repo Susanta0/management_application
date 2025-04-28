@@ -2,10 +2,9 @@ import { useMemo } from "react";
 import axios from "axios";
 
 export function useApi() {
-  const isProduction = window.location.hostname !== "localhost";
-  const baseURL = isProduction
-    ? "https://canva-mppp.onrender.com"
-    : "http://localhost:8080";
+  //   const isProduction = window.location.hostname !== "localhost";
+  const baseURL = "https://management-application-o77e.onrender.com";
+  // : "";
 
   const token = localStorage.getItem("managment_token");
 
@@ -14,6 +13,7 @@ export function useApi() {
       baseURL,
       headers: {
         Authorization: token ? `Bearer ${token}` : "",
+        "Content-Type": "application/json"
       },
       withCredentials: true,
     });

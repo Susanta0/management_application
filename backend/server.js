@@ -2,8 +2,15 @@ const express = require("express");
 const { dbConnect } = require("./config/db");
 const  userRoutes  = require("./routes/user.routes");
 const  taskRoutes  = require("./routes/task.routes");
+const cors = require("cors");
 const app = express();
 require("dotenv").config();
+
+// Configure CORS
+app.use(cors({
+  origin: ["http://localhost:5173", "http://localhost:3000"],
+  credentials: true
+}));
 
 app.use(express.json());
 
