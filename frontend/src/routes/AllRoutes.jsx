@@ -1,37 +1,21 @@
 import React from "react";
-import { Route, Routes, Navigate } from "react-router-dom";
+import { Route, Routes } from "react-router-dom";
 import AuthComponents from "../components/AuthComponents";
-import HomePage from "../components/HomePage";
+import HomePage from "../pages/HomePage";
+import Protect from "../protect/ProtectedRoute";
 
-// Protected route component
-const ProtectedRoute = ({ children }) => {
-  const token = localStorage.getItem("managment_token");
-
-  if (!token) {
-    // Redirect to login if not authenticated
-    return <Navigate to="/" replace />;
-  }
-
-  return children;
-};
 export const AllRoutes = () => {
-  const token = localStorage.getItem("managment_token");
-
   return (
     <Routes>
       <Route
-        path="/"
-        element={token ? <Navigate to="/home" replace /> : <AuthComponents />}
-      />
-      <Route
         path="/home"
         element={
-          <ProtectedRoute>
+          <Protect>
             <HomePage />
-          </ProtectedRoute>
+          </Protect>
         }
       />
-      <Route path="/login" element={<AuthComponents />} />
+      <Route path="/" element={<AuthComponents />} />
     </Routes>
   );
 };

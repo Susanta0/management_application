@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useContext } from "react";
 import {
   Eye,
   EyeOff,
@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useApi } from "../utils/api";
 import { useNavigate } from "react-router-dom";
+import { AuthContext } from "../context/AuthContextProvider.jsx";
 
 export default function AuthComponents() {
   const [isLogin, setIsLogin] = useState(true);
@@ -23,6 +24,7 @@ export default function AuthComponents() {
 
   const api = useApi();
   const navigate = useNavigate();
+  const { userLogin } = useContext(AuthContext);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -39,8 +41,12 @@ export default function AuthComponents() {
 
         console.log(response);
 
-        // Store token in localStorage
-        localStorage.setItem("managment_token", response.data.token);
+        console.log('Login response:', response.data);
+        // Use AuthContext to store token and user info
+        userLogin(
+          response.data.token, 
+          response.data.userId
+        );
 
         setSubmitted(true);
 
