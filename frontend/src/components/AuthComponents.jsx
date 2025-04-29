@@ -41,8 +41,6 @@ export default function AuthComponents() {
 
         console.log(response);
 
-        console.log('Login response:', response.data);
-        // Use AuthContext to store token and user info
         userLogin(
           response.data.token, 
           response.data.userId

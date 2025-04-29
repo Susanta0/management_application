@@ -8,7 +8,7 @@ require("dotenv").config();
 
 // Configure CORS
 app.use(cors({
-  origin: ["http://localhost:5173", "http://localhost:3000"],
+  origin: ["http://localhost:5173", "https://management-application-sigma.vercel.app/"],
   credentials: true
 }));
 

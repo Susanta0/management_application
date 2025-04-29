@@ -41,7 +41,9 @@ export default function TaskDashboard() {
         setTasks(response.data?.tasks || []);
       } catch (err) {
         console.error("Error fetching tasks:", err);
-        setError("Failed to load tasks. Please try again later.");
+        if (err.response && err.response.status !== 404) {
+          setError("Failed to load tasks. Please try again later.");
+        }
       } finally {
         setIsLoading(false);
       }
@@ -59,35 +61,31 @@ export default function TaskDashboard() {
     e.preventDefault();
 
     try {
-      // Log the payload for debugging
-      console.log("Sending task data:", newTask);
       const taskToAdd = {
         ...newTask,
-        userId: userId, // Ensure userId is included if required by your API
+        userId: userId,
       };
       const response = await api.post("/api/task/create_task", taskToAdd);
-      console.log("API response:", response);
 
       if (response.data && response.data.task) {
-        // Add the new task to the state
-        setTasks((prevTasks) => [response.data.task, ...prevTasks]);
+        // Add the new task to the state immediately
+        const newTaskWithId = response.data.task;
+        setTasks((prevTasks) => [newTaskWithId, ...prevTasks]);
 
         // Reset form
         setNewTask({
           title: "",
           description: "",
-          priority: "medium",
+          priority: "Medium",
           status: "incomplete",
         });
         setIsAddingTask(false);
       } else {
-        // Handle case where response is successful but doesn't contain expected data
         console.error("Invalid response format:", response.data);
         alert("Unexpected API response. Please try again.");
       }
     } catch (err) {
       console.error("Error creating task:", err);
-      // More detailed error message
       const errorMessage =
         err.response?.data?.message ||
         "Failed to create task. Please try again.";
@@ -145,11 +143,11 @@ export default function TaskDashboard() {
 
   const getPriorityColor = (priority) => {
     switch (priority.toLowerCase()) {
-      case "High":
+      case "high":
         return "text-red-500";
-      case "Medium":
+      case "medium":
         return "text-amber-500";
-      case "Low":
+      case "low":
         return "text-green-500";
       default:
         return "text-gray-500";
@@ -193,7 +191,7 @@ export default function TaskDashboard() {
               onChange={(e) => setFilter(e.target.value)}
             >
               <option value="all">All Tasks</option>
-              <option value="incomplete">Active Tasks</option>
+              <option value="incomplete">Incomplete Tasks</option>
               <option value="complete">Completed Tasks</option>
             </select>
           </div>
@@ -345,6 +343,15 @@ export default function TaskDashboard() {
                   ? `No ${filter} tasks available`
                   : "Add your first task to get started"}
               </p>
+              {filter === "all" && (
+                <button
+                  onClick={() => setIsAddingTask(true)}
+                  className="mt-4 rounded-lg bg-blue-100 px-4 py-2 text-blue-700 hover:bg-blue-200 flex items-center"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create your first task
+                </button>
+              )}
             </div>
           ) : (
             filteredTasks.map((task) => (
@@ -412,7 +419,7 @@ export default function TaskDashboard() {
                         <Calendar className="mr-1 h-3 w-3" />
                         <span>
                           Created{" "}
-                          {formatDate(task.creationDate || task.creataionDate)}
+                          {formatDate(task.creataionDate)}
                         </span>
                       </div>
                     </div>
