@@ -39,8 +39,6 @@ export default function AuthComponents() {
           password,
         });
 
-        console.log(response);
-
         userLogin(
           response.data.token, 
           response.data.userId
